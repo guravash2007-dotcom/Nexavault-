@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        :root { --bg: #0a0a0b; --card: #141416; --accent: #4d7cfe; --text: #f0f0f0; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
+        
+        /* Header */
+        .header { text-align: center; padding: 40px; border-bottom: 1px solid #222; position: relative; }
+        .menu-btn { position: absolute; left: 35px; top: 40px; cursor: pointer; font-size: 30px; transition: 0.3s; z-index: 50; }
+        .menu-btn:hover { color: var(--accent); }
+        
+        /* Main */
+        .content { height: 75vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .drop-box { width: 550px; height: 280px; border: 1px solid #333; background: var(--card); border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.4s; box-shadow: 0 15px 40px rgba(0,0,0,0.6); }
+        .drop-box:hover { border-color: var(--accent); transform: scale(1.01); }
+
+        /* Sidebar */
+        #sidebar { position: fixed; left: -360px; top: 0; width: 340px; height: 100%; background: var(--card); border-right: 1px solid #333; transition: 0.5s; z-index: 100; padding: 40px 25px; box-sizing: border-box; }
+        #sidebar.active { left: 0; }
+        .history-item { background: #1e1e21; padding: 15px; margin-bottom: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+
+        /* Sleek Pop-up Modals */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 2000; backdrop-filter: blur(10px); }
+        .modal-box { background: #18181b; padding: 40px; border-radius: 16px; width: 400px; text-align: center; border: 1px solid #333; box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
+        input { width: 100%; padding: 15px; margin: 20px 0; background: #000; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--accent); }
+        button { background: var(--accent); color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; transition: 0.3s; }
+        button:hover { opacity: 0.9; }
+        .cancel-link { display: block; margin-top: 15px; color: #666; text-decoration: none; font-size: 14px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="setupModal" class="modal-overlay">
+    <div class="modal-box">
+        <h2 style="margin:0 0 10px 0; font-weight: 400;">Initialize Vault</h2>
+        <p style="color:#666; font-size: 14px;">Define a master password for polymorphic encryption</p>
+        <input type="password" id="initPw" placeholder="8-20 characters required">
+        <button onclick="setupVault()">CREATE SECURE VAULT</button>
+    </div>
+</div>
+
+<div id="confirmModal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+        <h2 style="font-weight: 400;">Authentication Required</h2>
+        <p id="targetFile" style="color:var(--accent); font-family: monospace; font-size: 13px;"></p>
+        <input type="password" id="confirmPw" placeholder="Enter Vault Password">
+        <button onclick="executeShatter()">INITIATE SHATTER PROCESS</button>
+        <a class="cancel-link" onclick="closeModals()">ABORT OPERATION</a>
+    </div>
+</div>
+
+<div id="sidebar">
+    <h2 style="letter-spacing: 2px; font-weight: 300;">SHATTERED HISTORY</h2>
+    <div id="historyList" style="margin-top:30px;"></div>
+    <button style="background:#222; margin-top:20px;" onclick="toggleSidebar()">CLOSE MENU</button>
+</div>
+
+<div class="header">
+    <div class="menu-btn" onclick="toggleSidebar()">☰</div>
+    <h1 style="letter-spacing: 8px; font-weight: 200; margin:0;">NEXA VAULT</h1>
+</div>
+
+<div class="content">
+    <div class="drop-box" onclick="selectFile()">
+        <p style="letter-spacing: 3px; color: #555;">UPLOAD ASSET TO VAULT</p>
+    </div>
+</div>
+
+<script>
+    let masterPassword = "";
+    let fileToProcess = "";
+
+    function toggleSidebar() { 
+        document.getElementById('sidebar').classList.toggle('active');
+        if(document.getElementById('sidebar').classList.contains('active')) loadHistory();
+    }
+
+    function setupVault() {
+        let pw = document.getElementById('initPw').value;
+        if(pw.length >= 8 && pw.length <= 20) {
+            masterPassword = pw;
+            document.getElementById('setupModal').style.display = 'none';
+        } else { alert("Password must be 8-20 characters."); }
+    }
+
+    async function selectFile() {
+        const path = await window.pywebview.api.open_file();
+        if(path) {
+            fileToProcess = path;
+            document.getElementById('targetFile').innerText = "Target: " + path.split('\\').pop();
+            document.getElementById('confirmModal').style.display = 'flex';
+        }
+    }
+
+    async function executeShatter() {
+        let pw = document.getElementById('confirmPw').value;
+        if(pw !== masterPassword) { alert("Incorrect Key"); return; }
+        
+        let success = await window.pywebview.api.shatter_action(fileToProcess, pw);
+        if(success) {
+            alert("Shattering Complete. Original file vaporized.");
+            closeModals();
+        }
+    }
+
+    async function loadHistory() {
+        let history = await window.pywebview.api.get_history(masterPassword);
+        let list = document.getElementById('historyList');
+        list.innerHTML = "";
+        for (let id in history) {
+            let item = history[id];
+            list.innerHTML += `<div class="history-item">
+                <span>${item.name}</span>
+                <button onclick="recover('${id}', '${item.name}', '${item.dir}')" style="width:auto; padding:6px 12px; font-size:10px;">RESTORE</button>
+            </div>`;
+        }
+    }
+
+    async function recover(id, name, dir) {
+        let pw = prompt("Verify Vault Key to Reconstitute:");
+        if(pw === masterPassword) {
+            let success = await window.pywebview.api.recover_action(id, name, dir, pw);
+            if(success) {
+                alert("File restored to: " + dir);
+                loadHistory();
+            } else { alert("Restoration failed."); }
+        }
+    }
+
+    function closeModals() { document.getElementById('confirmModal').style.display = 'none'; }
+</script>
+</body>
+</html>
